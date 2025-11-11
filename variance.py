@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+hide_st_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_st_style, unsafe_allow_html=True)
 # --- Page Setup ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 st.title("🏪 Outlet-wise Sales Insights Dashboard")
