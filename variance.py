@@ -69,12 +69,12 @@ if password == "123123":
 
             outlet_sales = outlet_sales[outlet_sales["Qty Sold"] > 0]
 
-            # --- Calculate Average Monthly Sales per Outlet ---
-            outlet_sales["Avg Monthly Sales"] = (outlet_sales["Qty Sold"] / 10).astype(int)
+            # --- Average Monthly Sales (+1) ---
+            outlet_sales["Avg Monthly Sale"] = (outlet_sales["Qty Sold"] / 10 + 1).astype(int)
 
-            # --- Overall Average Monthly Sales for Info Box ---
-            avg_sales = outlet_sales["Avg Monthly Sales"].mean()
-            st.info(f"**Average Monthly Sales per Item:** {int(avg_sales)} units")
+            # --- Overall Avg Monthly Sale for Info Box ---
+            avg_sale = outlet_sales["Avg Monthly Sale"].mean()
+            st.info(f"**Avg Monthly Sale per Item:** {int(avg_sale)} units")
 
             # --- Horizontal Bar Chart ---
             fig = px.bar(
@@ -85,16 +85,16 @@ if password == "123123":
                 text="Qty Sold",
                 color="Qty Sold",
                 color_continuous_scale="Blues",
-                hover_data={"Item Code": True, "Items": True, "Avg Monthly Sales": True}
+                hover_data={"Item Code": True, "Items": True, "Avg Monthly Sale": True}
             )
             fig.update_traces(textposition="outside")
             fig.update_layout(title_x=0.3, yaxis_title="Outlet", xaxis_title="Quantity Sold")
             st.plotly_chart(fig, use_container_width=True)
 
             # --- Detailed Table ---
-            st.markdown("### 📋 Outlet-wise Detailed Sales (with Avg Monthly Sales)")
+            st.markdown("### 📋 Outlet-wise Detailed Sales (with Avg Monthly Sale)")
             st.dataframe(
-                outlet_sales[["Item Code", "Items", "Outlet", "Qty Sold", "Avg Monthly Sales"]]
+                outlet_sales[["Item Code", "Items", "Outlet", "Qty Sold", "Avg Monthly Sale"]]
                 .sort_values("Qty Sold", ascending=False),
                 use_container_width=True
             )
