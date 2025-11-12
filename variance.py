@@ -31,7 +31,7 @@ if password == "123123":
     st.success("✅ Access Granted")
     df = load_data()
 
-    # Identify outlet columns
+    # Identify outlet columns (everything except Item Code & Items)
     outlet_cols = [c for c in df.columns if c not in ["Item Code", "Items"]]
 
     # --- Sidebar: Outlet Selector ---
@@ -42,7 +42,7 @@ if password == "123123":
 
     # --- Main Page: Search Box / Barcode Input ---
     search_term = st.text_input(
-        "🔍 Search by Item Name or Scan Barcode:", 
+        "🔍 Search by Item Name or Scan Barcode:",
         placeholder="Tap here to scan barcode with phone camera"
     ).strip()
 
