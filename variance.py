@@ -54,7 +54,7 @@ if password == "123123":
             item_name = filtered_df.iloc[0]["Items"]
             st.subheader(f"📦 Results for: **{item_name}**")
 
-            # --- Melt data for plotting ---
+            # --- Melt data for plotting and table ---
             outlet_sales = filtered_df.melt(
                 id_vars=["Item Code", "Items"],
                 value_vars=outlet_cols,
@@ -69,9 +69,11 @@ if password == "123123":
 
             outlet_sales = outlet_sales[outlet_sales["Qty Sold"] > 0]
 
-            # --- Average Monthly Sales ---
-            total_sales = outlet_sales["Qty Sold"].sum()
-            avg_sales = total_sales / 10  # Jan–Oct
+            # --- Calculate Average Monthly Sales per Outlet ---
+            outlet_sales["Avg Monthly Sales"] = (outlet_sales["Qty Sold"] / 10).astype(int)
+
+            # --- Overall Average Monthly Sales for Info Box ---
+            avg_sales = outlet_sales["Avg Monthly Sales"].mean()
             st.info(f"**Average Monthly Sales per Item:** {int(avg_sales)} units")
 
             # --- Horizontal Bar Chart ---
@@ -83,15 +85,19 @@ if password == "123123":
                 text="Qty Sold",
                 color="Qty Sold",
                 color_continuous_scale="Blues",
-                hover_data={"Item Code": True, "Items": True}
+                hover_data={"Item Code": True, "Items": True, "Avg Monthly Sales": True}
             )
             fig.update_traces(textposition="outside")
             fig.update_layout(title_x=0.3, yaxis_title="Outlet", xaxis_title="Quantity Sold")
             st.plotly_chart(fig, use_container_width=True)
 
             # --- Detailed Table ---
-            st.markdown("### 📋 Outlet-wise Detailed Sales")
-            st.dataframe(outlet_sales[["Item Code", "Items", "Outlet", "Qty Sold"]], use_container_width=True)
+            st.markdown("### 📋 Outlet-wise Detailed Sales (with Avg Monthly Sales)")
+            st.dataframe(
+                outlet_sales[["Item Code", "Items", "Outlet", "Qty Sold", "Avg Monthly Sales"]]
+                .sort_values("Qty Sold", ascending=False),
+                use_container_width=True
+            )
 
         else:
             st.warning("🔎 No matching items found. Try another search term.")
