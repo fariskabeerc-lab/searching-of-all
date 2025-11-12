@@ -26,14 +26,13 @@ def load_data():
     df.columns = df.columns.str.strip()
     return df
 
-# --- Proceed only if password is correct ---
 if password == "123123":
     st.success("✅ Access Granted")
 
     # Load data
     df = load_data()
 
-    # Identify outlet columns (everything except Item Code & Items)
+    # Identify outlet columns
     outlet_cols = [col for col in df.columns if col not in ["Item Code", "Items"]]
 
     # --- Search Box ---
@@ -47,16 +46,19 @@ if password == "123123":
         ]
 
         if not filtered.empty:
-            st.subheader(f"📦 Results for: **{search_term}**")
+            # Get the unique barcode(s)
+            item_codes = filtered["Item Code"].unique()
+            item_codes_text = ", ".join(map(str, item_codes))
 
-            # --- Aggregate Outlet Sales (sum of all matching items) ---
+            st.subheader(f"📦 Results for: **{search_term}** (Barcode: {item_codes_text})")
+
+            # --- Aggregate Outlet Sales (sum all matching items) ---
             summed = filtered[outlet_cols].sum(numeric_only=True)
             outlet_sales = summed.reset_index()
             outlet_sales.columns = ["Outlet", "Qty Sold"]
-
-            # Convert numeric & compute monthly average
             outlet_sales["Qty Sold"] = pd.to_numeric(outlet_sales["Qty Sold"], errors="coerce").fillna(0)
             outlet_sales["Avg Monthly Sales"] = outlet_sales["Qty Sold"] / 10  # Jan–Oct = 10 months
+            outlet_sales["Item Code(s)"] = item_codes_text  # attach barcodes for hover/table
 
             # --- Insights ---
             total_qty = outlet_sales["Qty Sold"].sum()
@@ -79,7 +81,13 @@ if password == "123123":
                 text="Qty Sold",
                 color="Qty Sold",
                 color_continuous_scale="Blues",
-                title=f"Outlet-wise Total Sales for '{search_term}' (Jan–Oct)"
+                title=f"Outlet-wise Total Sales for '{search_term}' (Jan–Oct)",
+                hover_data={
+                    "Outlet": True,
+                    "Qty Sold": True,
+                    "Avg Monthly Sales": True,
+                    "Item Code(s)": True
+                }
             )
             fig.update_traces(textposition="outside")
             fig.update_layout(
@@ -91,9 +99,11 @@ if password == "123123":
             st.plotly_chart(fig, use_container_width=True)
 
             # --- Detailed Table ---
-            st.markdown("### 📋 Outlet-wise Sales & Monthly Average")
+            st.markdown("### 📋 Outlet-wise Sales & Monthly Average with Barcode")
             st.dataframe(
-                outlet_sales.sort_values("Qty Sold", ascending=False).reset_index(drop=True),
+                outlet_sales[["Item Code(s)", "Outlet", "Qty Sold", "Avg Monthly Sales"]]
+                .sort_values("Qty Sold", ascending=False)
+                .reset_index(drop=True),
                 use_container_width=True
             )
 
