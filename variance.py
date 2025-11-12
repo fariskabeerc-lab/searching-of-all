@@ -6,7 +6,7 @@ import plotly.express as px
 
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Outlet-wise Sales Insights Dashboard")
+st.title("🏪 Sales QTY Checking")
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
