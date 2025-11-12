@@ -1,6 +1,7 @@
 streamlit
-plotly
+streamlit-webrtc
+opencv-python
+pyzbar
 pandas
-numpy
-so
+plotly
 openpyxl
