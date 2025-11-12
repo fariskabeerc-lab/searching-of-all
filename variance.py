@@ -2,16 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- Hide Streamlit Branding ---
-hide_st_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    [data-testid="stToolbar"] {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_st_style, unsafe_allow_html=True)
+
 
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
