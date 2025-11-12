@@ -23,7 +23,7 @@ password = st.text_input("🔑 Enter Password:", type="password")
 # --- Cache Data ---
 @st.cache_data
 def load_data():
-    df = pd.read_excel("column wise.Xlsx")  # 👈 change filename if needed
+    df = pd.read_excel("column wise.xlsx")  # 👈 change filename if needed
     df.columns = df.columns.str.strip()
     return df
 
@@ -56,11 +56,18 @@ if password == "123123":
             )
 
             outlet_sales["Qty Sold"] = pd.to_numeric(outlet_sales["Qty Sold"], errors="coerce").fillna(0)
+
+            # --- Outlet Filter ---
+            selected_outlet = st.selectbox("🏬 Select Outlet:", ["All Outlets"] + sorted(outlet_cols))
+
+            if selected_outlet != "All Outlets":
+                outlet_sales = outlet_sales[outlet_sales["Outlet"] == selected_outlet]
+
             outlet_sales = outlet_sales[outlet_sales["Qty Sold"] > 0]
 
             # --- Average Monthly Sales (integer) ---
             total_sales = outlet_sales["Qty Sold"].sum()
-            avg_sales = total_sales / 10  # for Jan–Oct (10 months)
+            avg_sales = total_sales / 10  # Jan–Oct (10 months)
             st.info(f"**Average Monthly Sales per Item:** {int(avg_sales)} units")
 
             # --- Horizontal Bar Chart ---
