@@ -23,7 +23,7 @@ password = st.text_input("🔑 Enter Password:", type="password")
 # --- Cache Data ---
 @st.cache_data
 def load_data():
-    df = pd.read_excel("column wise.xlsx")  # 👈 change filename if needed
+    df = pd.read_excel("column wise.Xlsx")  # 👈 change filename if needed
     df.columns = df.columns.str.strip()
     return df
 
