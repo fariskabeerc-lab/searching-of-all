@@ -30,16 +30,17 @@ def load_data():
 if password == "123123":
     st.success("✅ Access Granted")
 
+    # Load data
     df = load_data()
 
-    # Identify outlet columns dynamically (everything except Item Code and Items)
+    # Identify outlet columns (everything except Item Code & Items)
     outlet_cols = [col for col in df.columns if col not in ["Item Code", "Items"]]
 
-    # --- Search Input ---
+    # --- Search Box ---
     search_term = st.text_input("🔍 Search for an Item (by name or code):").strip()
 
     if search_term:
-        # Fast filter
+        # --- Fast Filtering ---
         filtered = df[
             df["Items"].astype(str).str.contains(search_term, case=False, na=False)
             | df["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
@@ -48,22 +49,19 @@ if password == "123123":
         if not filtered.empty:
             st.subheader(f"📦 Results for: **{search_term}**")
 
-            # Take the first matching item row
-            item_row = filtered.iloc[0]
+            # --- Aggregate Outlet Sales (sum of all matching items) ---
+            summed = filtered[outlet_cols].sum(numeric_only=True)
+            outlet_sales = summed.reset_index()
+            outlet_sales.columns = ["Outlet", "Qty Sold"]
 
-            # Create a melted dataframe for easier plotting
-            outlet_sales = (
-                item_row[outlet_cols]
-                .reset_index()
-                .rename(columns={"index": "Outlet", 0: "Qty Sold"})
-            )
-            outlet_sales["Qty Sold"] = outlet_sales["Qty Sold"].astype(float)
-            outlet_sales["Avg Monthly Sales"] = outlet_sales["Qty Sold"] / 10  # 10 months average
+            # Convert numeric & compute monthly average
+            outlet_sales["Qty Sold"] = pd.to_numeric(outlet_sales["Qty Sold"], errors="coerce").fillna(0)
+            outlet_sales["Avg Monthly Sales"] = outlet_sales["Qty Sold"] / 10  # Jan–Oct = 10 months
 
             # --- Insights ---
+            total_qty = outlet_sales["Qty Sold"].sum()
             top_outlet = outlet_sales.loc[outlet_sales["Qty Sold"].idxmax()]
             low_outlet = outlet_sales.loc[outlet_sales["Qty Sold"].idxmin()]
-            total_qty = outlet_sales["Qty Sold"].sum()
 
             st.markdown("### 📊 Insights")
             col1, col2, col3, col4 = st.columns(4)
@@ -72,7 +70,7 @@ if password == "123123":
             col3.metric("🏆 Top Outlet", f"{top_outlet['Outlet']}", f"{int(top_outlet['Qty Sold'])} Units")
             col4.metric("📉 Lowest Outlet", f"{low_outlet['Outlet']}", f"{int(low_outlet['Qty Sold'])} Units")
 
-            # --- Horizontal Bar Chart (Outlet vs Qty Sold) ---
+            # --- Horizontal Bar Chart ---
             fig = px.bar(
                 outlet_sales.sort_values("Qty Sold", ascending=True),
                 y="Outlet",
@@ -84,7 +82,12 @@ if password == "123123":
                 title=f"Outlet-wise Total Sales for '{search_term}' (Jan–Oct)"
             )
             fig.update_traces(textposition="outside")
-            fig.update_layout(title_x=0.3, yaxis_title="Outlet", xaxis_title="Qty Sold (Jan–Oct)")
+            fig.update_layout(
+                yaxis_title="Outlet",
+                xaxis_title="Quantity Sold (Jan–Oct)",
+                title_x=0.3,
+                height=600
+            )
             st.plotly_chart(fig, use_container_width=True)
 
             # --- Detailed Table ---
