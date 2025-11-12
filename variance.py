@@ -40,11 +40,14 @@ if password == "123123":
         ["All Outlets"] + sorted(outlet_cols)
     )
 
-    # --- Main Page: Search Box ---
-    search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
+    # --- Main Page: Search Box / Barcode Input ---
+    search_term = st.text_input(
+        "🔍 Search by Item Name or Scan Barcode:", 
+        placeholder="Tap here to scan barcode with phone camera"
+    ).strip()
 
     if search_term:
-        # --- Filter by Name or Barcode ---
+        # --- Filter by Item Name or Barcode ---
         filtered_df = df[
             df["Items"].astype(str).str.contains(search_term, case=False, na=False)
             | df["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
@@ -69,7 +72,7 @@ if password == "123123":
 
             outlet_sales = outlet_sales[outlet_sales["Qty Sold"] > 0]
 
-            # --- Average Monthly Sales (+1) ---
+            # --- Average Monthly Sale (+1) ---
             outlet_sales["Avg Monthly Sale"] = (outlet_sales["Qty Sold"] / 10 + 1).astype(int)
 
             # --- Overall Avg Monthly Sale for Info Box ---
@@ -101,6 +104,7 @@ if password == "123123":
 
         else:
             st.warning("🔎 No matching items found. Try another search term.")
+
 elif password:
     st.error("❌ Incorrect Password.")
 else:
