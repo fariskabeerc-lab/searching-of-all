@@ -1,7 +1,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+hide_css = """
+<style>
+/* Try to hide specific buttons by title (works in many cases) */
+button[title="Fork"] {display:none !important;}
+button[title="Share"] {display:none !important;}
 
+/* Hide header and footer as fallback */
+header {visibility: hidden !important;}
+footer {visibility: hidden !important;}
+
+/* Additional generic fallbacks */
+div[role="toolbar"] {display:none !important;}
+</style>
+"""
+st.markdown(hide_css, unsafe_allow_html=True)
 
 
 # --- Page Config ---
