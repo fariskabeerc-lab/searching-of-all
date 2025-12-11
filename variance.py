@@ -6,7 +6,7 @@ from functools import reduce
 
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Sales QTY Check - Monthly Breakdown by Outlet")
+st.title("🏪 Sales QTY Check -JAN to NOV")
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
