@@ -23,7 +23,7 @@ st.markdown(hide_css, unsafe_allow_html=True)
 
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Sales QTY Check - Monthly Breakdown by Outlet") # Title updated for clarity
+st.title("🏪 Sales QTY Check - Monthly Breakdown by Outlet")
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
@@ -132,10 +132,8 @@ if password == "123123":
             st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
             
             # --- Aggregate and Melt data for Plotting ---
-            # Group by Outlet and sum up monthly sales 
             monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
             
-            # Melt the data from wide format to long format
             monthly_sales_melted = monthly_sales_summary.melt(
                 id_vars="Outlet",
                 value_vars=month_cols,
@@ -150,26 +148,39 @@ if password == "123123":
             monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
             
             if not monthly_sales_melted_plot.empty:
+                
+                # --- GRAND TOTAL ---
+                grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
+                st.metric(
+                    label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
+                    value=f"{grand_total_qty:,.0f} units"
+                )
+                
                 # --- Stacked Horizontal Bar Chart ---
                 st.markdown("### 📊 Outlet Sales Total (Monthly Composition)")
                 
-                # Sort the data by Outlet name and then by Date for consistent stacking
+                # Sort the data by Outlet name and then by Date for correct chronological stacking
                 df_plot_sorted = monthly_sales_melted_plot.sort_values(by=['Outlet', 'Date'])
                 
                 fig = px.bar(
                     df_plot_sorted,
                     x="Qty Sold",
                     y="Outlet",
-                    color="Month", # <-- This segments the bars by Month
+                    color="Month", # Segments the bar by month
                     orientation="h",
                     title=f"Total Sales Quantity by Outlet, Segmented by Month",
-                    hover_data={"Qty Sold": True, "Month": True, "Outlet": True}
+                    hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
+                    # Uses sequential blue shades for unified color while differentiating months
+                    color_discrete_sequence=px.colors.sequential.Blues_r 
                 )
+                
+                # Adds a border/line to visually separate the monthly segments
+                fig.update_traces(marker_line_width=1, marker_line_color='black')
                 
                 fig.update_layout(
                     xaxis_title="Quantity Sold (Stacked by Month)", 
                     yaxis_title="Outlet",
-                    # Ensure X-axis order for outlets is sorted by total sales quantity for better readability
+                    # Ensures Y-axis order for outlets is sorted by total sales quantity
                     yaxis={'categoryorder':'total ascending'},
                     legend_title_text='Month'
                 )
