@@ -117,10 +117,10 @@ if password == "123123":
         else:
             df_filtered = df_combined.copy()
             
-        # 2. Apply Item Search Filter
+        # 2. Apply Item Search Filter (FIXED: replaced 'filtered_df_item' with 'df_filtered' inside the mask)
         filtered_df_item = df_filtered[
-            filtered_df_item["Items"].astype(str).str.contains(search_term, case=False, na=False)
-            | filtered_df_item["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
+            df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
+            | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
         ]
 
         if not filtered_df_item.empty:
@@ -175,7 +175,7 @@ if password == "123123":
                     title=f"Total Sales Quantity by Outlet, Segmented by Month",
                     hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
                     color_discrete_sequence=px.colors.sequential.Blues_r,
-                    # Enforce the chronological order of months
+                    # Enforce the chronological order of months (Jan first)
                     category_orders={"Month": present_month_order} 
                 )
                 
