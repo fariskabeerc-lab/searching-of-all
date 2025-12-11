@@ -22,8 +22,8 @@ st.markdown(hide_css, unsafe_allow_html=True)
 
 
 # --- Page Config ---
-st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Sales QTY Check - Outlet Comparison") # Title updated for Bar Chart View
+st.set_page_config(page_title="Monthly Sales Insights", layout="wide")
+st.title("🗓️ Sales QTY Check - Monthly Trend") # Title updated to reflect monthly view
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
@@ -77,18 +77,6 @@ def load_all_data(files_list):
     # Convert monthly columns to numeric
     for col in month_cols:
         master_df[col] = pd.to_numeric(master_df[col], errors='coerce').fillna(0)
-    
-    # *** Calculation for Bar Chart: Total Sales ***
-    # Calculate Total Sales (QTY Sold) by summing all monthly columns
-    master_df['Total Sales (Qty)'] = master_df[month_cols].sum(axis=1)
-
-    # Calculate Avg Monthly Sale (using number of months present)
-    num_months_present = len(month_cols)
-    if num_months_present > 0:
-        master_df['Avg Monthly Sale'] = (master_df['Total Sales (Qty)'] / num_months_present).astype(int)
-    else:
-        master_df['Avg Monthly Sale'] = 0
-    # **********************************************
         
     return master_df, month_cols
 
@@ -104,11 +92,10 @@ if password == "123123":
         
     df_combined, month_cols = loaded_data
 
-    # --- Sidebar: Outlet Selector (Only used to pre-filter search results) ---
+    # --- Sidebar: Outlet Selector ---
     all_outlets = sorted(df_combined['Outlet'].unique().tolist())
-    # Note: For the comparison bar chart, this selector acts as a way to narrow the view
     selected_outlet = st.sidebar.selectbox(
-        "🏬 Select Outlet (Narrows search results only):",
+        "🏬 Select Outlet:",
         ["All Outlets"] + all_outlets
     )
 
@@ -117,11 +104,17 @@ if password == "123123":
 
     if search_term:
         
-        # 1. Apply Item Search Filter (find all rows matching the item)
-        filtered_df_item = df_combined[
-            df_combined["Items"].astype(str).str.contains(search_term, case=False, na=False)
-            | df_combined["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
-        ].copy()
+        # 1. Apply Outlet Filter FIRST
+        if selected_outlet != "All Outlets":
+            df_filtered = df_combined[df_combined["Outlet"] == selected_outlet].copy()
+        else:
+            df_filtered = df_combined.copy()
+            
+        # 2. Apply Item Search Filter
+        filtered_df_item = df_filtered[
+            df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
+            | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
+        ]
 
         if not filtered_df_item.empty:
             
@@ -136,56 +129,65 @@ if password == "123123":
                 final_item_df = filtered_df_item
                 selected_item_name = final_item_df.iloc[0]["Items"]
 
-            st.subheader(f"📦 Total Sales Comparison for: **{selected_item_name}**")
-
-            # --- Group/Aggregate Data for the Bar Chart ---
-            # Sum up sales by Outlet 
-            outlet_sales = final_item_df.groupby('Outlet').agg(
-                {'Total Sales (Qty)': 'sum', 'Avg Monthly Sale': 'mean'}
-            ).reset_index()
-
-            # --- Apply Outlet Filter (AFTER Aggregation) ---
-            if selected_outlet != "All Outlets":
-                outlet_sales = outlet_sales[outlet_sales["Outlet"] == selected_outlet]
-
-            # Filter out outlets with no sales
-            outlet_sales = outlet_sales[outlet_sales["Total Sales (Qty)"] > 0]
+            st.subheader(f"📦 Monthly Sales Quantity for: **{selected_item_name}**")
             
-            if not outlet_sales.empty:
-                
-                # --- Overall Avg Monthly Sale for Info Box ---
-                avg_sale = outlet_sales["Avg Monthly Sale"].mean()
-                st.info(f"**Overall Avg Monthly Sale per Outlet:** {int(avg_sale)} units (Based on {len(month_cols)} months of data)")
+            # --- Aggregate and Melt data for Time Series Plotting ---
+            # Group by Outlet and sum up monthly sales (in case of duplicate item codes in an outlet)
+            monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
+            
+            # Melt the data from wide format (Jan, Feb, Mar...) to long format (Month, Qty Sold)
+            monthly_sales_melted = monthly_sales_summary.melt(
+                id_vars="Outlet",
+                value_vars=month_cols,
+                var_name="Month",
+                value_name="Qty Sold"
+            )
+            
+            # Convert 'Month' to a proper date type for correct sorting on the chart
+            monthly_sales_melted['Date'] = pd.to_datetime(monthly_sales_melted['Month'], format='%b-%Y')
+            monthly_sales_melted = monthly_sales_melted.sort_values('Date')
 
-                # --- Horizontal Bar Chart (Outlet Comparison) ---
-                st.markdown("### 📊 Outlet Comparison (Total Sales)")
+            # Filter out zero sales for better chart visualization
+            monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
+            
+            if not monthly_sales_melted_plot.empty:
+                # --- Bar Chart for Monthly Trend ---
+                st.markdown("### 📊 Monthly Sales Quantity Trend by Outlet")
+                
+                # Use 'Outlet' as color if 'All Outlets' is selected (creates grouped/stacked bars)
+                color_var = 'Outlet' if selected_outlet == "All Outlets" else None
+                
                 fig = px.bar(
-                    outlet_sales.sort_values("Total Sales (Qty)", ascending=True),
-                    x="Total Sales (Qty)",
-                    y="Outlet",
-                    orientation="h",
-                    text="Total Sales (Qty)",
-                    color="Total Sales (Qty)",
-                    color_continuous_scale="Blues",
-                    hover_data={
-                        "Total Sales (Qty)": True, 
-                        "Avg Monthly Sale": ":.0f" # Format as integer
-                    }
+                    monthly_sales_melted_plot,
+                    x="Month",
+                    y="Qty Sold",
+                    color=color_var, # This handles the grouping/stacking
+                    title=f"Monthly Sales Quantity Trend for {selected_item_name}",
+                    hover_data={"Qty Sold": True, "Month": True, "Outlet": True}
                 )
-                fig.update_traces(textposition="outside")
-                fig.update_layout(title_x=0.3, yaxis_title="Outlet", xaxis_title="Total Quantity Sold (All Months)")
+                
+                fig.update_layout(
+                    xaxis_title="Month", 
+                    yaxis_title="Quantity Sold",
+                    # Ensure X-axis order is correct
+                    xaxis={'categoryorder':'array', 'categoryarray': monthly_sales_melted_plot['Month'].unique().tolist()},
+                    legend_title_text='Outlet'
+                )
+                
                 st.plotly_chart(fig, use_container_width=True)
 
-                # --- Detailed Table ---
-                st.markdown("### 📋 Outlet-wise Detailed Sales")
+                # --- Detailed Table (Show monthly sales) ---
+                st.markdown("### 📋 Monthly Sales Breakdown")
+                
+                # Prepare a table showing monthly sales
+                display_cols = ['Outlet'] + month_cols
                 st.dataframe(
-                    outlet_sales[["Outlet", "Total Sales (Qty)", "Avg Monthly Sale"]]
-                    .sort_values("Total Sales (Qty)", ascending=False),
+                    monthly_sales_summary[display_cols].sort_values("Outlet"),
                     use_container_width=True
                 )
 
             else:
-                st.warning(f"No sales data found for **{selected_item_name}** in the selected outlet(s).")
+                st.warning(f"No sales data found for **{selected_item_name}** in the selected period/outlet(s).")
                 
         else:
             st.warning("🔎 No matching items found. Try another search term.")
