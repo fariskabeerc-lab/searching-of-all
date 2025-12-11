@@ -22,8 +22,8 @@ st.markdown(hide_css, unsafe_allow_html=True)
 
 
 # --- Page Config ---
-st.set_page_config(page_title="Monthly Sales Insights", layout="wide")
-st.title("🗓️ Sales QTY Check - Monthly Trend") # Title updated to reflect monthly view
+st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
+st.title("🏪 Sales QTY Check - Monthly Breakdown by Outlet") # Title updated for clarity
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
@@ -129,13 +129,13 @@ if password == "123123":
                 final_item_df = filtered_df_item
                 selected_item_name = final_item_df.iloc[0]["Items"]
 
-            st.subheader(f"📦 Monthly Sales Quantity for: **{selected_item_name}**")
+            st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
             
-            # --- Aggregate and Melt data for Time Series Plotting ---
-            # Group by Outlet and sum up monthly sales (in case of duplicate item codes in an outlet)
+            # --- Aggregate and Melt data for Plotting ---
+            # Group by Outlet and sum up monthly sales 
             monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
             
-            # Melt the data from wide format (Jan, Feb, Mar...) to long format (Month, Qty Sold)
+            # Melt the data from wide format to long format
             monthly_sales_melted = monthly_sales_summary.melt(
                 id_vars="Outlet",
                 value_vars=month_cols,
@@ -143,35 +143,35 @@ if password == "123123":
                 value_name="Qty Sold"
             )
             
-            # Convert 'Month' to a proper date type for correct sorting on the chart
+            # Convert 'Month' to a proper date type for correct sorting (critical for stacking)
             monthly_sales_melted['Date'] = pd.to_datetime(monthly_sales_melted['Month'], format='%b-%Y')
-            monthly_sales_melted = monthly_sales_melted.sort_values('Date')
-
+            
             # Filter out zero sales for better chart visualization
             monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
             
             if not monthly_sales_melted_plot.empty:
-                # --- Bar Chart for Monthly Trend ---
-                st.markdown("### 📊 Monthly Sales Quantity Trend by Outlet")
+                # --- Stacked Horizontal Bar Chart ---
+                st.markdown("### 📊 Outlet Sales Total (Monthly Composition)")
                 
-                # Use 'Outlet' as color if 'All Outlets' is selected (creates grouped/stacked bars)
-                color_var = 'Outlet' if selected_outlet == "All Outlets" else None
+                # Sort the data by Outlet name and then by Date for consistent stacking
+                df_plot_sorted = monthly_sales_melted_plot.sort_values(by=['Outlet', 'Date'])
                 
                 fig = px.bar(
-                    monthly_sales_melted_plot,
-                    x="Month",
-                    y="Qty Sold",
-                    color=color_var, # This handles the grouping/stacking
-                    title=f"Monthly Sales Quantity Trend for {selected_item_name}",
+                    df_plot_sorted,
+                    x="Qty Sold",
+                    y="Outlet",
+                    color="Month", # <-- This segments the bars by Month
+                    orientation="h",
+                    title=f"Total Sales Quantity by Outlet, Segmented by Month",
                     hover_data={"Qty Sold": True, "Month": True, "Outlet": True}
                 )
                 
                 fig.update_layout(
-                    xaxis_title="Month", 
-                    yaxis_title="Quantity Sold",
-                    # Ensure X-axis order is correct
-                    xaxis={'categoryorder':'array', 'categoryarray': monthly_sales_melted_plot['Month'].unique().tolist()},
-                    legend_title_text='Outlet'
+                    xaxis_title="Quantity Sold (Stacked by Month)", 
+                    yaxis_title="Outlet",
+                    # Ensure X-axis order for outlets is sorted by total sales quantity for better readability
+                    yaxis={'categoryorder':'total ascending'},
+                    legend_title_text='Month'
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
