@@ -31,8 +31,8 @@ password = st.text_input("🔑 Enter Password:", type="password")
 # --- Configuration (Update with your actual file names) ---
 # Use a simple list of your two large dataset files
 DATA_FILES = [
-    "Sales_Dataset_1.xlsx",
-    "Sales_Dataset_2.xlsx",
+    "Month wise full outlet sales(1).xlsx",
+    "Month wise full outlet sales.Xlsx",
     # Add more files if needed, but ensure they all have the 'Company Name' column
 ]
 
