@@ -34,13 +34,19 @@ DATA_FILES = [
     "Month wise full outlet sales.Xlsx",
 ]
 
+# --- Master Month List for Chronological Ordering ---
+MASTER_MONTH_ORDER = [
+    'Jan-2025', 'Feb-2025', 'Mar-2025', 'Apr-2025', 'May-2025', 'Jun-2025',
+    'Jul-2025', 'Aug-2025', 'Sep-2025', 'Oct-2025', 'Nov-2025', 'Dec-2025'
+]
+
 # --- Cache Data Loading and Merging ---
 @st.cache_data
 def load_all_data(files_list):
     data_frames = []
     
     # List of all expected monthly columns
-    MONTHLY_COLUMNS = [f"{m}-{y}" for y in ["2025"] for m in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]]
+    MONTHLY_COLUMNS = MASTER_MONTH_ORDER
     
     # 1. Load each dataset and concatenate
     for file_path in files_list:
@@ -72,7 +78,8 @@ def load_all_data(files_list):
     
     # Identify the actual monthly columns present
     all_cols = master_df.columns.tolist()
-    month_cols = [c for c in all_cols if c in MONTHLY_COLUMNS]
+    # Filter the master list to only include columns actually present in the data
+    month_cols = [c for c in all_cols if c in MASTER_MONTH_ORDER] 
 
     # Convert monthly columns to numeric
     for col in month_cols:
@@ -112,8 +119,8 @@ if password == "123123":
             
         # 2. Apply Item Search Filter
         filtered_df_item = df_filtered[
-            df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
-            | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
+            filtered_df_item["Items"].astype(str).str.contains(search_term, case=False, na=False)
+            | filtered_df_item["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
         ]
 
         if not filtered_df_item.empty:
@@ -141,9 +148,6 @@ if password == "123123":
                 value_name="Qty Sold"
             )
             
-            # Convert 'Month' to a proper date type for correct sorting (critical for stacking)
-            monthly_sales_melted['Date'] = pd.to_datetime(monthly_sales_melted['Month'], format='%b-%Y')
-            
             # Filter out zero sales for better chart visualization
             monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
             
@@ -159,19 +163,20 @@ if password == "123123":
                 # --- Stacked Horizontal Bar Chart ---
                 st.markdown("### 📊 Outlet Sales Total (Monthly Composition)")
                 
-                # Sort the data by Outlet name and then by Date for correct chronological stacking
-                df_plot_sorted = monthly_sales_melted_plot.sort_values(by=['Outlet', 'Date'])
+                # Filter the master order list to only include months present in the data
+                present_month_order = [m for m in MASTER_MONTH_ORDER if m in monthly_sales_melted_plot['Month'].unique()]
                 
                 fig = px.bar(
-                    df_plot_sorted,
+                    monthly_sales_melted_plot,
                     x="Qty Sold",
                     y="Outlet",
                     color="Month", # Segments the bar by month
                     orientation="h",
                     title=f"Total Sales Quantity by Outlet, Segmented by Month",
                     hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
-                    # Uses sequential blue shades for unified color while differentiating months
-                    color_discrete_sequence=px.colors.sequential.Blues_r 
+                    color_discrete_sequence=px.colors.sequential.Blues_r,
+                    # Enforce the chronological order of months
+                    category_orders={"Month": present_month_order} 
                 )
                 
                 # Adds a border/line to visually separate the monthly segments
