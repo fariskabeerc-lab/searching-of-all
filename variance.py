@@ -4,7 +4,6 @@ import plotly.express as px
 from functools import reduce
 
 
-
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 st.title("🏪 Sales QTY Check - Monthly Breakdown by Outlet")
@@ -101,7 +100,7 @@ if password == "123123":
         else:
             df_filtered = df_combined.copy()
             
-        # 2. Apply Item Search Filter (FIXED: replaced 'filtered_df_item' with 'df_filtered' inside the mask)
+        # 2. Apply Item Search Filter
         filtered_df_item = df_filtered[
             df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
             | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
@@ -137,7 +136,7 @@ if password == "123123":
             
             if not monthly_sales_melted_plot.empty:
                 
-                # --- GRAND TOTAL ---
+                # --- GRAND TOTAL (Overall) ---
                 grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
                 st.metric(
                     label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
@@ -154,28 +153,50 @@ if password == "123123":
                     monthly_sales_melted_plot,
                     x="Qty Sold",
                     y="Outlet",
-                    color="Month", # Segments the bar by month
+                    color="Month", 
                     orientation="h",
                     title=f"Total Sales Quantity by Outlet, Segmented by Month",
                     hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
                     color_discrete_sequence=px.colors.sequential.Blues_r,
-                    # Enforce the chronological order of months (Jan first)
                     category_orders={"Month": present_month_order} 
                 )
                 
-                # Adds a border/line to visually separate the monthly segments
                 fig.update_traces(marker_line_width=1, marker_line_color='black')
                 
                 fig.update_layout(
                     xaxis_title="Quantity Sold (Stacked by Month)", 
                     yaxis_title="Outlet",
-                    # Ensures Y-axis order for outlets is sorted by total sales quantity
                     yaxis={'categoryorder':'total ascending'},
-                    legend_title_text='Month'
+                    legend_title_text='Month',
+                    # Adjust right margin to make space for the totals label
+                    margin=dict(r=100) 
+                )
+
+                # --- ADDING TOTAL LABELS TO THE CHART ---
+                outlet_totals = monthly_sales_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
+                outlet_totals.columns = ['Outlet', 'Total Sales (Qty)']
+
+                # Add annotations for the total quantity at the end of each bar
+                for _, row in outlet_totals.iterrows():
+                    fig.add_annotation(
+                        x=row['Total Sales (Qty)'],
+                        y=row['Outlet'],
+                        text=f"{row['Total Sales (Qty)']:.0f}",
+                        showarrow=False,
+                        xanchor='left',
+                        xshift=10, # Push label slightly past the end of the bar
+                        font=dict(size=12, color='black', weight='bold')
+                    )
+
+                st.plotly_chart(fig, use_container_width=True) # Final plot call
+                
+                # --- Total by Outlet Wise (Table) ---
+                st.markdown("### 🏷️ Total Sales Quantity by Outlet")
+                st.dataframe(
+                    outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
+                    use_container_width=True
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
-
                 # --- Detailed Table (Show monthly sales) ---
                 st.markdown("### 📋 Monthly Sales Breakdown")
                 
