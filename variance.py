@@ -3,79 +3,91 @@ import pandas as pd
 import plotly.express as px
 from functools import reduce
 
-
 # --- Page Config ---
-st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Sales QTY Check -JAN to NOV")
+# We use st.session_state to track if the sidebar should be open or closed
+if "sidebar_state" not in st.session_state:
+    st.session_state.sidebar_state = "expanded"
+
+st.set_page_config(
+    page_title="Outlet Sales Insights", 
+    layout="wide", 
+    initial_sidebar_state=st.session_state.sidebar_state
+)
+
+# --- Hide "Fork" and Streamlit Branding ---
+hide_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    /* This removes the padding at the top so it looks cleaner */
+    .block-container {padding-top: 2rem;}
+    </style>
+"""
+st.markdown(hide_style, unsafe_allow_html=True)
+
+# --- Sidebar Toggle Function ---
+def toggle_sidebar():
+    if st.session_state.sidebar_state == "expanded":
+        st.session_state.sidebar_state = "collapsed"
+    else:
+        st.session_state.sidebar_state = "expanded"
+
+# --- Main UI ---
+st.title("🏪 Sales QTY Check - JAN to NOV")
+
+# Button to open/close the filter bar
+if st.button("📁 Toggle Filter Bar"):
+    toggle_sidebar()
+    st.rerun()
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
 
-# --- Configuration (Your file names) ---
+# --- Configuration ---
 DATA_FILES = [
     "Month wise full outlet sales(1).xlsx",
     "Month wise full outlet sales.Xlsx",
 ]
 
-# --- Master Month List for Chronological Ordering ---
 MASTER_MONTH_ORDER = [
     'Jan-2025', 'Feb-2025', 'Mar-2025', 'Apr-2025', 'May-2025', 'Jun-2025',
     'Jul-2025', 'Aug-2025', 'Sep-2025', 'Oct-2025', 'Nov-2025', 'Dec-2025'
 ]
 
-# --- Cache Data Loading and Merging ---
 @st.cache_data
 def load_all_data(files_list):
     data_frames = []
-    
-    # List of all expected monthly columns
-    MONTHLY_COLUMNS = MASTER_MONTH_ORDER
-    
-    # 1. Load each dataset and concatenate
     for file_path in files_list:
         try:
             df = pd.read_excel(file_path)
-            # Standardize column names
             df.columns = df.columns.str.strip()
             data_frames.append(df)
-        except FileNotFoundError:
-            st.error(f"File not found: {file_path}. Please check your file path.")
-            return None
         except Exception as e:
             st.error(f"Error loading {file_path}: {e}")
             return None
 
-    if not data_frames:
-        return None
-
-    # 2. Concatenate all dataframes into a single master dataframe
+    if not data_frames: return None
     master_df = pd.concat(data_frames, ignore_index=True)
     
-    # 3. Clean and prepare data
     if 'Company Name' in master_df.columns:
-        # Rename 'Company Name' to 'Outlet' for consistency
         master_df = master_df.rename(columns={'Company Name': 'Outlet'})
     else:
-        st.error("The required column 'Company Name' was not found in the datasets.")
+        st.error("The required column 'Company Name' was not found.")
         return None
     
-    # Identify the actual monthly columns present
     all_cols = master_df.columns.tolist()
-    # Filter the master list to only include columns actually present in the data
     month_cols = [c for c in all_cols if c in MASTER_MONTH_ORDER] 
 
-    # Convert monthly columns to numeric
     for col in month_cols:
         master_df[col] = pd.to_numeric(master_df[col], errors='coerce').fillna(0)
         
     return master_df, month_cols
 
-# --- Main Logic Start ---
-
+# --- Main Logic ---
 if password == "123123":
     st.success("✅ Access Granted")
     
-    # Load and merge data
     loaded_data = load_all_data(DATA_FILES)
     if loaded_data is None:
         st.stop()
@@ -90,137 +102,84 @@ if password == "123123":
     )
 
     # --- Main Page: Search Box ---
-    search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
+    search_input = st.text_input("🔍 Search by Item Name or Barcode (Separate multiple with space):").strip()
 
-    if search_term:
+    if search_input:
+        # Split search input by spaces to handle multiple barcodes/names
+        search_terms = [term.strip() for term in search_input.split(" ") if term.strip()]
         
-        # 1. Apply Outlet Filter FIRST
+        # Apply Outlet Filter FIRST
         if selected_outlet != "All Outlets":
-            df_filtered = df_combined[df_combined["Outlet"] == selected_outlet].copy()
+            df_filtered_base = df_combined[df_combined["Outlet"] == selected_outlet].copy()
         else:
-            df_filtered = df_combined.copy()
-            
-        # 2. Apply Item Search Filter
-        filtered_df_item = df_filtered[
-            df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
-            | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
-        ]
+            df_filtered_base = df_combined.copy()
 
-        if not filtered_df_item.empty:
+        # Loop through each search term and display details "one by one"
+        for term in search_terms:
+            st.divider() # Visual separator for multiple items
             
-            # --- Handle Multiple Item Matches (for display clarity) ---
-            matching_items = filtered_df_item[['Item Code', 'Items']].drop_duplicates()
-            
-            if len(matching_items) > 1:
-                item_options = matching_items['Items'].tolist()
-                selected_item_name = st.selectbox("Select specific item:", item_options)
-                final_item_df = filtered_df_item[filtered_df_item['Items'] == selected_item_name]
-            else:
-                final_item_df = filtered_df_item
-                selected_item_name = final_item_df.iloc[0]["Items"]
+            # Apply Item Search Filter for this specific term
+            filtered_df_item = df_filtered_base[
+                df_filtered_base["Items"].astype(str).str.contains(term, case=False, na=False)
+                | df_filtered_base["Item Code"].astype(str).str.contains(term, case=False, na=False)
+            ]
 
-            st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
-            
-            # --- Aggregate and Melt data for Plotting ---
-            monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
-            
-            monthly_sales_melted = monthly_sales_summary.melt(
-                id_vars="Outlet",
-                value_vars=month_cols,
-                var_name="Month",
-                value_name="Qty Sold"
-            )
-            
-            # Filter out zero sales for better chart visualization
-            monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
-            
-            if not monthly_sales_melted_plot.empty:
+            if not filtered_df_item.empty:
+                matching_items = filtered_df_item[['Item Code', 'Items']].drop_duplicates()
                 
-                # --- GRAND TOTAL (Overall) ---
-                grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
-                st.metric(
-                    label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
-                    value=f"{grand_total_qty:,.0f} units"
+                # If one search term matches multiple actual items (like "Milk")
+                if len(matching_items) > 1:
+                    item_options = matching_items['Items'].tolist()
+                    selected_item_name = st.selectbox(f"Multiple items found for '{term}'. Select one:", item_options, key=f"select_{term}")
+                    final_item_df = filtered_df_item[filtered_df_item['Items'] == selected_item_name]
+                else:
+                    final_item_df = filtered_df_item
+                    selected_item_name = final_item_df.iloc[0]["Items"]
+
+                st.subheader(f"📦 Results for: **{selected_item_name}**")
+                
+                # --- Aggregate and Melt ---
+                monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
+                monthly_sales_melted = monthly_sales_summary.melt(
+                    id_vars="Outlet", value_vars=month_cols, var_name="Month", value_name="Qty Sold"
                 )
+                monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
                 
-                # --- Stacked Horizontal Bar Chart ---
-                st.markdown("### 📊 Outlet Sales Total (Monthly Composition)")
-                
-                # Filter the master order list to only include months present in the data
-                present_month_order = [m for m in MASTER_MONTH_ORDER if m in monthly_sales_melted_plot['Month'].unique()]
-                
-                fig = px.bar(
-                    monthly_sales_melted_plot,
-                    x="Qty Sold",
-                    y="Outlet",
-                    color="Month", 
-                    orientation="h",
-                    title=f"Total Sales Quantity by Outlet, Segmented by Month",
-                    hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
-                    color_discrete_sequence=px.colors.sequential.Blues_r,
-                    category_orders={"Month": present_month_order} 
-                )
-                
-                fig.update_traces(marker_line_width=1, marker_line_color='black')
-                
-                fig.update_layout(
-                    xaxis_title="Quantity Sold (Stacked by Month)", 
-                    yaxis_title="Outlet",
-                    yaxis={'categoryorder':'total ascending'},
-                    legend_title_text='Month',
-                    # Adjust right margin to make space for the totals label
-                    margin=dict(r=100) 
-                )
-
-                # --- ADDING TOTAL LABELS TO THE CHART ---
-                outlet_totals = monthly_sales_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
-                outlet_totals.columns = ['Outlet', 'Total Sales (Qty)']
-
-                # Add annotations for the total quantity at the end of each bar
-                for _, row in outlet_totals.iterrows():
-                    fig.add_annotation(
-                        x=row['Total Sales (Qty)'],
-                        y=row['Outlet'],
-                        text=f"{row['Total Sales (Qty)']:.0f}",
-                        showarrow=False,
-                        xanchor='left',
-                        xshift=10, # Push label slightly past the end of the bar
-                        font=dict(size=12, color='black', weight='bold')
+                if not monthly_sales_melted_plot.empty:
+                    grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
+                    st.metric(label=f"🏆 GRAND TOTAL ({selected_item_name})", value=f"{grand_total_qty:,.0f} units")
+                    
+                    # --- Chart ---
+                    present_month_order = [m for m in MASTER_MONTH_ORDER if m in monthly_sales_melted_plot['Month'].unique()]
+                    fig = px.bar(
+                        monthly_sales_melted_plot, x="Qty Sold", y="Outlet", color="Month", 
+                        orientation="h", title=f"Sales for {selected_item_name}",
+                        color_discrete_sequence=px.colors.sequential.Blues_r,
+                        category_orders={"Month": present_month_order} 
                     )
+                    fig.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(r=100))
+                    
+                    # Labels
+                    outlet_totals = monthly_sales_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
+                    for _, row in outlet_totals.iterrows():
+                        fig.add_annotation(x=row['Qty Sold'], y=row['Outlet'], text=f"{row['Qty Sold']:.0f}",
+                                           showarrow=False, xanchor='left', xshift=10, font=dict(weight='bold'))
 
-                st.plotly_chart(fig, use_container_width=True) # Final plot call
-                
-                # --- Total by Outlet Wise (Table) ---
-                st.markdown("### 🏷️ Total Sales Quantity by Outlet")
-                st.dataframe(
-                    outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
-                    use_container_width=True
-                )
-                
-                # --- Detailed Table (Show monthly sales) ---
-                st.markdown("### 📋 Monthly Sales Breakdown")
-                
-                # Prepare a table showing monthly sales
-                display_cols = ['Outlet'] + month_cols
-                st.dataframe(
-                    monthly_sales_summary[display_cols].sort_values("Outlet"),
-                    use_container_width=True
-                )
-
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{term}_{selected_item_name}")
+                    
+                    # Tables
+                    with st.expander(f"View Data Tables for {selected_item_name}"):
+                        st.dataframe(outlet_totals.sort_values('Qty Sold', ascending=False), use_container_width=True)
+                        st.dataframe(monthly_sales_summary[['Outlet'] + month_cols], use_container_width=True)
+                else:
+                    st.warning(f"No sales data found for '{term}'.")
             else:
-                st.warning(f"No sales data found for **{selected_item_name}** in the selected period/outlet(s).")
+                st.warning(f"🔎 No matching items found for: **{term}**")
                 
-        else:
-            st.warning("🔎 No matching items found. Try another search term.")
-            
-    # --- Instructions/Initial State ---
-    elif not password:
-        st.info("🔒 Please enter the password to access the dashboard.")
-
-    # --- Info after access, but before search ---
-    elif password == "123123" and not search_term:
-        st.info("👈 Use the sidebar to filter by Outlet and the search box to find an item by Name or Barcode.")
-
+    elif password == "123123" and not search_input:
+        st.info("👈 Open the filter bar or enter barcodes above to begin.")
 
 elif password:
     st.error("❌ Incorrect Password.")
+elif not password:
+    st.info("🔒 Please enter the password to access the dashboard.")
