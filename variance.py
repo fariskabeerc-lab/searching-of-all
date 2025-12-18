@@ -2,43 +2,39 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- 1. Page Setup ---
-st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
+# --- 1. Page Configuration (Sidebar forced to Expanded) ---
+st.set_page_config(
+    page_title="Outlet Sales Insights", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# Initialize state for the sidebar toggle
-if "show_sidebar" not in st.session_state:
-    st.session_state.show_sidebar = True
-
-# --- 2. CSS Hack: Hide Fork & Control Sidebar Visibility ---
-# This CSS hides the "fork" (header) and the footer.
-# It also hides the sidebar based on our custom button state.
-sidebar_display = "block" if st.session_state.show_sidebar else "none"
-
-st.markdown(f"""
+# --- 2. CSS to Hide "Fork", Footer, and Sidebar Toggle Button ---
+st.markdown("""
     <style>
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
-    [data-testid="stSidebar"] {{
-        display: {sidebar_display};
-    }}
-    /* Hide the default small toggle arrow */
-    [data-testid="sidebar-toggle"] {{display: none;}}
-    .block-container {{padding-top: 1rem;}}
+    /* Hide the top header/fork menu */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    
+    /* Hide the footer */
+    footer {visibility: hidden;}
+    
+    /* HIDE THE SIDEBAR CLOSE BUTTON (<<) */
+    [data-testid="sidebar-toggle"] {
+        display: none !important;
+    }
+    
+    /* Remove top padding for a cleaner look */
+    .block-container {padding-top: 1rem;}
+    
+    /* Ensure the sidebar cannot be collapsed by dragging */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        margin-left: 0px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Sidebar Toggle Function ---
-def toggle_sidebar():
-    st.session_state.show_sidebar = not st.session_state.show_sidebar
-
-# --- 4. Main Page Top Bar ---
-# Separate button to open/close
-st.button("📁 Open/Close Filter Bar", on_click=toggle_sidebar)
-
-st.title("🏪 Sales QTY Check - JAN to NOV")
-
-# --- 5. Configuration & Data Loading ---
+# --- 3. Configuration & Data Loading ---
 DATA_FILES = ["Month wise full outlet sales(1).xlsx", "Month wise full outlet sales.Xlsx"]
 MASTER_MONTH_ORDER = [
     'Jan-2025', 'Feb-2025', 'Mar-2025', 'Apr-2025', 'May-2025', 'Jun-2025',
@@ -64,25 +60,27 @@ def load_all_data(files_list):
         master_df[col] = pd.to_numeric(master_df[col], errors='coerce').fillna(0)
     return master_df, month_cols
 
-# --- 6. Authentication ---
-# 'key' is vital here - it prevents the password from clearing when the sidebar toggles
-password = st.text_input("🔑 Enter Password:", type="password", key="app_password")
+# --- 4. Main Interface ---
+st.title("🏪 Sales QTY Check - JAN to NOV")
+
+# Password field
+password = st.text_input("🔑 Enter Password:", type="password")
 
 if password == "123123":
     loaded_data = load_all_data(DATA_FILES)
     if loaded_data:
         df_combined, month_cols = loaded_data
         
-        # --- Sidebar Filters ---
+        # --- Sidebar Content (Always Open) ---
+        st.sidebar.header("Filters")
         all_outlets = sorted(df_combined['Outlet'].unique().tolist())
         selected_outlet = st.sidebar.selectbox("🏬 Select Outlet:", ["All Outlets"] + all_outlets)
 
-        # --- Multi-Barcode Search ---
-        # User types: "89011 89022 89033"
-        search_input = st.text_input("🔍 Search Barcodes (Separated by Space):", key="search_bar").strip()
+        # --- Multi-Barcode Search Logic ---
+        search_input = st.text_input("🔍 Search Barcodes (Space separated for multiple items):").strip()
 
         if search_input:
-            # Split search by space to handle multiple items one by one
+            # Split by space to handle multiple barcodes/names
             search_terms = [t.strip() for t in search_input.split(" ") if t.strip()]
             
             df_base = df_combined.copy()
@@ -91,7 +89,7 @@ if password == "123123":
 
             for term in search_terms:
                 st.markdown(f"---")
-                st.subheader(f"🔍 Search Result for: `{term}`")
+                st.subheader(f"📦 Results for: `{term}`")
                 
                 filtered = df_base[
                     df_base["Items"].astype(str).str.contains(term, case=False, na=False) |
@@ -99,30 +97,28 @@ if password == "123123":
                 ]
 
                 if not filtered.empty:
-                    # Logic to handle if one barcode/term matches multiple items
                     unique_names = filtered['Items'].unique()
                     if len(unique_names) > 1:
-                        sel_item = st.selectbox(f"Select specific item for '{term}':", unique_names, key=f"sel_{term}")
+                        # Key uses the term to keep selection independent
+                        sel_item = st.selectbox(f"Select item for '{term}':", unique_names, key=f"sel_{term}")
                         final_df = filtered[filtered['Items'] == sel_item]
                     else:
                         final_df = filtered
                         sel_item = unique_names[0]
 
-                    # Summary Calculations
+                    # Summary & Plotting
                     summary = final_df.groupby(['Outlet'])[month_cols].sum().reset_index()
                     melted = summary.melt(id_vars="Outlet", value_vars=month_cols, var_name="Month", value_name="Qty")
                     plot_df = melted[melted["Qty"] > 0]
 
                     if not plot_df.empty:
-                        st.metric(f"Total QTY Sold ({sel_item})", f"{plot_df['Qty'].sum():,.0f} units")
+                        st.metric(f"Total Units Sold ({sel_item})", f"{plot_df['Qty'].sum():,.0f}")
                         
-                        # Build Chart
                         fig = px.bar(plot_df, x="Qty", y="Outlet", color="Month", orientation="h",
-                                     title=f"Monthly Sales: {sel_item}",
                                      category_orders={"Month": MASTER_MONTH_ORDER},
                                      color_discrete_sequence=px.colors.sequential.Blues_r)
                         
-                        # Value labels
+                        # Add value labels
                         totals = plot_df.groupby('Outlet')['Qty'].sum().reset_index()
                         for _, r in totals.iterrows():
                             fig.add_annotation(x=r['Qty'], y=r['Outlet'], text=str(int(r['Qty'])),
@@ -130,13 +126,13 @@ if password == "123123":
                         
                         st.plotly_chart(fig, use_container_width=True, key=f"chart_{term}")
                     else:
-                        st.warning(f"No sales recorded for: {sel_item}")
+                        st.warning(f"No sales data found for: {sel_item}")
                 else:
-                    st.error(f"❌ Barcode/Item '{term}' not found in data.")
+                    st.error(f"❌ Barcode or Item '{term}' not found.")
     else:
-        st.error("Missing Data: Ensure Excel files are in the same folder.")
+        st.error("Excel files not found or could not be loaded.")
 
 elif password:
     st.error("❌ Incorrect Password.")
 else:
-    st.info("🔒 Please enter the password to access.")
+    st.info("🔒 Please enter the password to access the dashboard.")
