@@ -72,6 +72,7 @@ if password == "123123":
     data_load = load_all_data(DATA_FILES)
     if data_load is None:
         st.stop()
+    
     df, month_cols = data_load
 
     # --- Sidebar: Outlet Selection ---
@@ -82,16 +83,17 @@ if password == "123123":
     search_input = st.text_input("🔍 Search Item Name or Item Code (separate multiple with space):").strip()
 
     if search_input:
+        # Split input by spaces to create a list of exact terms
         search_terms = [term.strip() for term in search_input.split() if term.strip()]
-        pattern = "|".join(search_terms)
 
         # Apply outlet filter first
         df_filtered = df[df["Outlet"] == selected_outlet] if selected_outlet != "All Outlets" else df.copy()
 
-        # Apply search filter
+        # --- Exact Match Filter ---
+        # .isin() ensures it only matches the full string, not a partial piece
         df_filtered = df_filtered[
-            df_filtered["Items"].astype(str).str.contains(pattern, case=False, na=False) |
-            df_filtered["Item Code"].astype(str).str.contains(pattern, case=False, na=False)
+            df_filtered["Items"].astype(str).isin(search_terms) | 
+            df_filtered["Item Code"].astype(str).isin(search_terms)
         ]
 
         if not df_filtered.empty:
@@ -102,6 +104,7 @@ if password == "123123":
 
                 item_df = df_filtered[df_filtered['Items'] == item]
                 monthly_summary = item_df.groupby('Outlet')[month_cols].sum().reset_index()
+                
                 monthly_melted = monthly_summary.melt(
                     id_vars="Outlet", value_vars=month_cols, var_name="Month", value_name="Qty Sold"
                 )
@@ -126,7 +129,7 @@ if password == "123123":
                     )
                     fig.update_traces(marker_line_width=1, marker_line_color='black')
 
-                    # Add total per outlet
+                    # Add total per outlet label
                     totals = monthly_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
                     for _, row in totals.iterrows():
                         fig.add_annotation(
@@ -155,9 +158,10 @@ if password == "123123":
                 else:
                     st.warning(f"No sales data found for **{item}**.")
         else:
-            st.warning("🔎 No matching items found. Try different keywords.")
+            st.warning("🔎 No exact matching items found. Please check your spelling or code.")
     else:
         st.info("👈 Enter an item name or barcode above to view sales breakdown. Use the sidebar to filter by outlet.")
 
 elif password:
+    st.error("❌ Incorrect Password.")
     st.error("❌ Incorrect Password.")
