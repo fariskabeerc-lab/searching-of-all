@@ -6,12 +6,7 @@ import plotly.express as px
 # --- Page Config ---
 # =========================
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.markdown("""
-    <style>
-    header {visibility: hidden;}
-    .block-container { padding-top: 2rem; }
-    </style>
-""", unsafe_allow_html=True)
+
 st.title("🏪 Sales QTY Check - JAN to NOV")
 
 # =========================
