@@ -6,45 +6,46 @@ from functools import reduce
 
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
-st.title("🏪 Sales QTY Check -JAN to NOV")
 
-# --- UI FIXES (DO NOT AFFECT LOGIC) ---
+# --- LOCK SIDEBAR + HIDE STREAMLIT UI ---
 st.markdown("""
 <style>
-/* Hide sidebar collapse button */
-button[kind="header"] {
-    display: none;
+/* 🔒 Hide sidebar collapse arrow (latest Streamlit) */
+[data-testid="collapsedControl"] {
+    display: none !important;
 }
 
-/* Keep sidebar always visible */
+/* Force sidebar always open */
 section[data-testid="stSidebar"] {
-    min-width: 280px;
-    max-width: 280px;
+    min-width: 280px !important;
+    max-width: 280px !important;
 }
 
-/* Hide Streamlit menu, footer, deploy */
+/* Hide Streamlit menu / fork / deploy */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
+st.title("🏪 Sales QTY Check -JAN to NOV")
+
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
 
-# --- Configuration (Your file names) ---
+# --- Configuration ---
 DATA_FILES = [
     "Month wise full outlet sales(1).xlsx",
     "Month wise full outlet sales.Xlsx",
 ]
 
-# --- Master Month List for Chronological Ordering ---
+# --- Master Month List ---
 MASTER_MONTH_ORDER = [
     'Jan-2025', 'Feb-2025', 'Mar-2025', 'Apr-2025', 'May-2025', 'Jun-2025',
     'Jul-2025', 'Aug-2025', 'Sep-2025', 'Oct-2025', 'Nov-2025', 'Dec-2025'
 ]
 
-# --- Cache Data Loading and Merging ---
+# --- Cache Data ---
 @st.cache_data
 def load_all_data(files_list):
     data_frames = []
@@ -70,7 +71,7 @@ def load_all_data(files_list):
     return master_df, month_cols
 
 
-# --- Main Logic Start ---
+# --- MAIN LOGIC ---
 if password == "123123":
     st.success("✅ Access Granted")
 
@@ -80,26 +81,25 @@ if password == "123123":
 
     df_combined, month_cols = loaded_data
 
-    # --- Sidebar: Outlet Selector ---
+    # --- Sidebar Filter ---
     all_outlets = sorted(df_combined['Outlet'].unique().tolist())
     selected_outlet = st.sidebar.selectbox(
         "🏬 Select Outlet:",
         ["All Outlets"] + all_outlets
     )
 
-    # --- Main Page: Search Box ---
+    # --- Search Box ---
     search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
     search_terms = search_term.split()
 
     if search_term:
 
-        # Apply Outlet Filter
         if selected_outlet != "All Outlets":
             df_filtered = df_combined[df_combined["Outlet"] == selected_outlet].copy()
         else:
             df_filtered = df_combined.copy()
 
-        # 🔁 MULTIPLE ITEM LOOP
+        # 🔁 MULTI ITEM SUPPORT
         for term in search_terms:
 
             filtered_df_item = df_filtered[
@@ -114,11 +114,10 @@ if password == "123123":
             matching_items = filtered_df_item[['Item Code', 'Items']].drop_duplicates()
 
             if len(matching_items) > 1:
-                item_options = matching_items['Items'].tolist()
                 selected_item_name = st.selectbox(
-                    f"Select specific item for search '{term}':",
-                    item_options,
-                    key=term
+                    f"Select specific item for '{term}':",
+                    matching_items['Items'].tolist(),
+                    key=f"item_{term}"
                 )
                 final_item_df = filtered_df_item[
                     filtered_df_item['Items'] == selected_item_name
@@ -130,7 +129,6 @@ if password == "123123":
             st.divider()
             st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
 
-            # --- Aggregate and Melt data ---
             monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
 
             monthly_sales_melted = monthly_sales_summary.melt(
@@ -148,14 +146,12 @@ if password == "123123":
                 st.warning("No sales data found.")
                 continue
 
-            # --- GRAND TOTAL ---
             grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
             st.metric(
                 label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
                 value=f"{grand_total_qty:,.0f} units"
             )
 
-            # --- Chart ---
             present_month_order = [
                 m for m in MASTER_MONTH_ORDER
                 if m in monthly_sales_melted_plot['Month'].unique()
@@ -197,7 +193,6 @@ if password == "123123":
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- Tables ---
             st.markdown("### 🏷️ Total Sales Quantity by Outlet")
             st.dataframe(
                 outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
