@@ -1,242 +1,80 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from functools import reduce
 
-
-# --- Page Config ---
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 
-# --- SESSION STATE FOR SIDEBAR ---
+# -------------------------------------------------
+# SESSION STATE
+# -------------------------------------------------
 if "sidebar_open" not in st.session_state:
     st.session_state.sidebar_open = True
 
 def toggle_sidebar():
     st.session_state.sidebar_open = not st.session_state.sidebar_open
 
-
-# --- CUSTOM SIDEBAR CSS CONTROL ---
+# -------------------------------------------------
+# CSS (SLIDE SIDEBAR, DON'T REMOVE IT)
+# -------------------------------------------------
 if st.session_state.sidebar_open:
-    sidebar_css = """
+    SIDEBAR_STYLE = """
     <style>
     section[data-testid="stSidebar"] {
-        display: block;
-    }
-    [data-testid="collapsedControl"] {
-        display: none;
+        width: 280px !important;
+        margin-left: 0px !important;
+        transition: margin-left 0.3s ease;
     }
     </style>
     """
 else:
-    sidebar_css = """
+    SIDEBAR_STYLE = """
     <style>
     section[data-testid="stSidebar"] {
-        display: none;
-    }
-    [data-testid="collapsedControl"] {
-        display: none;
+        width: 280px !important;
+        margin-left: -280px !important;
+        transition: margin-left 0.3s ease;
     }
     </style>
     """
 
-st.markdown(sidebar_css, unsafe_allow_html=True)
+st.markdown(SIDEBAR_STYLE, unsafe_allow_html=True)
 
-# --- HIDE STREAMLIT DEFAULT UI ---
+# -------------------------------------------------
+# HIDE DEFAULT STREAMLIT UI
+# -------------------------------------------------
 st.markdown("""
 <style>
+[data-testid="collapsedControl"] {display: none;}
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- TOP BAR ---
-top_col1, top_col2 = st.columns([1, 9])
-with top_col1:
+# -------------------------------------------------
+# TOP BAR
+# -------------------------------------------------
+top1, top2 = st.columns([1, 9])
+with top1:
     st.button("☰ Filters", on_click=toggle_sidebar)
 
-with top_col2:
+with top2:
     st.title("🏪 Sales QTY Check - JAN to NOV")
 
-# --- Password Protection ---
-password = st.text_input("🔑 Enter Password:", type="password")
+# -------------------------------------------------
+# SIDEBAR CONTENT (ALWAYS RENDERED)
+# -------------------------------------------------
+with st.sidebar:
+    st.subheader("🔍 Filters")
+    selected_outlet = st.selectbox(
+        "🏬 Select Outlet",
+        ["All Outlets", "Outlet A", "Outlet B", "Outlet C"]
+    )
 
-# --- Configuration ---
-DATA_FILES = [
-    "Month wise full outlet sales(1).xlsx",
-    "Month wise full outlet sales.Xlsx",
-]
-
-# --- Master Month List ---
-MASTER_MONTH_ORDER = [
-    'Jan-2025', 'Feb-2025', 'Mar-2025', 'Apr-2025', 'May-2025', 'Jun-2025',
-    'Jul-2025', 'Aug-2025', 'Sep-2025', 'Oct-2025', 'Nov-2025', 'Dec-2025'
-]
-
-# --- Cache Data ---
-@st.cache_data
-def load_all_data(files_list):
-    data_frames = []
-
-    for file_path in files_list:
-        df = pd.read_excel(file_path)
-        df.columns = df.columns.str.strip()
-        data_frames.append(df)
-
-    master_df = pd.concat(data_frames, ignore_index=True)
-
-    if 'Company Name' in master_df.columns:
-        master_df = master_df.rename(columns={'Company Name': 'Outlet'})
-    else:
-        st.error("The required column 'Company Name' was not found.")
-        return None
-
-    month_cols = [c for c in master_df.columns if c in MASTER_MONTH_ORDER]
-
-    for col in month_cols:
-        master_df[col] = pd.to_numeric(master_df[col], errors='coerce').fillna(0)
-
-    return master_df, month_cols
-
-
-# --- MAIN LOGIC ---
-if password == "123123":
-    st.success("✅ Access Granted")
-
-    loaded_data = load_all_data(DATA_FILES)
-    if loaded_data is None:
-        st.stop()
-
-    df_combined, month_cols = loaded_data
-
-    # --- Sidebar Filters ---
-    with st.sidebar:
-        all_outlets = sorted(df_combined['Outlet'].unique().tolist())
-        selected_outlet = st.selectbox(
-            "🏬 Select Outlet:",
-            ["All Outlets"] + all_outlets
-        )
-
-    # --- Search Box ---
-    search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
-    search_terms = search_term.split()
-
-    if search_term:
-
-        if selected_outlet != "All Outlets":
-            df_filtered = df_combined[df_combined["Outlet"] == selected_outlet].copy()
-        else:
-            df_filtered = df_combined.copy()
-
-        for term in search_terms:
-
-            filtered_df_item = df_filtered[
-                df_filtered["Items"].astype(str).str.contains(term, case=False, na=False)
-                | df_filtered["Item Code"].astype(str).str.contains(term, case=False, na=False)
-            ]
-
-            if filtered_df_item.empty:
-                st.warning(f"🔎 No matching items found for **{term}**")
-                continue
-
-            matching_items = filtered_df_item[['Item Code', 'Items']].drop_duplicates()
-
-            if len(matching_items) > 1:
-                selected_item_name = st.selectbox(
-                    f"Select specific item for '{term}':",
-                    matching_items['Items'].tolist(),
-                    key=f"item_{term}"
-                )
-                final_item_df = filtered_df_item[
-                    filtered_df_item['Items'] == selected_item_name
-                ]
-            else:
-                final_item_df = filtered_df_item
-                selected_item_name = final_item_df.iloc[0]["Items"]
-
-            st.divider()
-            st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
-
-            monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
-
-            monthly_sales_melted = monthly_sales_summary.melt(
-                id_vars="Outlet",
-                value_vars=month_cols,
-                var_name="Month",
-                value_name="Qty Sold"
-            )
-
-            monthly_sales_melted_plot = monthly_sales_melted[
-                monthly_sales_melted["Qty Sold"] > 0
-            ]
-
-            if monthly_sales_melted_plot.empty:
-                st.warning("No sales data found.")
-                continue
-
-            grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
-            st.metric(
-                f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
-                f"{grand_total_qty:,.0f} units"
-            )
-
-            present_month_order = [
-                m for m in MASTER_MONTH_ORDER
-                if m in monthly_sales_melted_plot['Month'].unique()
-            ]
-
-            fig = px.bar(
-                monthly_sales_melted_plot,
-                x="Qty Sold",
-                y="Outlet",
-                color="Month",
-                orientation="h",
-                title="Total Sales Quantity by Outlet, Segmented by Month",
-                color_discrete_sequence=px.colors.sequential.Blues_r,
-                category_orders={"Month": present_month_order}
-            )
-
-            fig.update_traces(marker_line_width=1, marker_line_color='black')
-            fig.update_layout(
-                xaxis_title="Quantity Sold",
-                yaxis_title="Outlet",
-                yaxis={'categoryorder': 'total ascending'},
-                legend_title_text='Month',
-                margin=dict(r=100)
-            )
-
-            outlet_totals = monthly_sales_melted_plot.groupby(
-                'Outlet')['Qty Sold'].sum().reset_index()
-            outlet_totals.columns = ['Outlet', 'Total Sales (Qty)']
-
-            for _, row in outlet_totals.iterrows():
-                fig.add_annotation(
-                    x=row['Total Sales (Qty)'],
-                    y=row['Outlet'],
-                    text=f"{row['Total Sales (Qty)']:.0f}",
-                    showarrow=False,
-                    xshift=10,
-                    font=dict(size=12, weight='bold')
-                )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            st.markdown("### 🏷️ Total Sales Quantity by Outlet")
-            st.dataframe(
-                outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
-                use_container_width=True
-            )
-
-            st.markdown("### 📋 Monthly Sales Breakdown")
-            display_cols = ['Outlet'] + month_cols
-            st.dataframe(
-                monthly_sales_summary[display_cols].sort_values("Outlet"),
-                use_container_width=True
-            )
-
-    else:
-        st.info("👈 Use Filters button to open sidebar")
-
-elif password:
-    st.error("❌ Incorrect Password.")
-
+# -------------------------------------------------
+# MAIN CONTENT
+# -------------------------------------------------
+st.write("Selected Outlet:", selected_outlet)
