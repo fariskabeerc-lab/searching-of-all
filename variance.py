@@ -7,18 +7,17 @@ from functools import reduce
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 
-# --- LOCK SIDEBAR + HIDE STREAMLIT UI ---
+# --- FIX SIDEBAR (HIDE ARROW ONLY, DO NOT MOVE SIDEBAR) ---
 st.markdown("""
 <style>
-/* 🔒 Hide sidebar collapse arrow (latest Streamlit) */
+/* Hide sidebar collapse arrow ONLY */
 [data-testid="collapsedControl"] {
     display: none !important;
 }
 
-/* Force sidebar always open */
+/* Do NOT touch sidebar width or position */
 section[data-testid="stSidebar"] {
-    min-width: 280px !important;
-    max-width: 280px !important;
+    display: block !important;
 }
 
 /* Hide Streamlit menu / fork / deploy */
@@ -81,7 +80,7 @@ if password == "123123":
 
     df_combined, month_cols = loaded_data
 
-    # --- Sidebar Filter ---
+    # --- Sidebar Filter (NOW VISIBLE & FIXED) ---
     all_outlets = sorted(df_combined['Outlet'].unique().tolist())
     selected_outlet = st.sidebar.selectbox(
         "🏬 Select Outlet:",
@@ -99,7 +98,6 @@ if password == "123123":
         else:
             df_filtered = df_combined.copy()
 
-        # 🔁 MULTI ITEM SUPPORT
         for term in search_terms:
 
             filtered_df_item = df_filtered[
@@ -148,8 +146,8 @@ if password == "123123":
 
             grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
             st.metric(
-                label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
-                value=f"{grand_total_qty:,.0f} units"
+                f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
+                f"{grand_total_qty:,.0f} units"
             )
 
             present_month_order = [
