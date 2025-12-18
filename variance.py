@@ -7,27 +7,56 @@ from functools import reduce
 # --- Page Config ---
 st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 
-# --- FIX SIDEBAR (HIDE ARROW ONLY, DO NOT MOVE SIDEBAR) ---
+# --- SESSION STATE FOR SIDEBAR ---
+if "sidebar_open" not in st.session_state:
+    st.session_state.sidebar_open = True
+
+def toggle_sidebar():
+    st.session_state.sidebar_open = not st.session_state.sidebar_open
+
+
+# --- CUSTOM SIDEBAR CSS CONTROL ---
+if st.session_state.sidebar_open:
+    sidebar_css = """
+    <style>
+    section[data-testid="stSidebar"] {
+        display: block;
+    }
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
+    </style>
+    """
+else:
+    sidebar_css = """
+    <style>
+    section[data-testid="stSidebar"] {
+        display: none;
+    }
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
+    </style>
+    """
+
+st.markdown(sidebar_css, unsafe_allow_html=True)
+
+# --- HIDE STREAMLIT DEFAULT UI ---
 st.markdown("""
 <style>
-/* Hide sidebar collapse arrow ONLY */
-[data-testid="collapsedControl"] {
-    display: none !important;
-}
-
-/* Do NOT touch sidebar width or position */
-section[data-testid="stSidebar"] {
-    display: block !important;
-}
-
-/* Hide Streamlit menu / fork / deploy */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🏪 Sales QTY Check -JAN to NOV")
+# --- TOP BAR ---
+top_col1, top_col2 = st.columns([1, 9])
+with top_col1:
+    st.button("☰ Filters", on_click=toggle_sidebar)
+
+with top_col2:
+    st.title("🏪 Sales QTY Check - JAN to NOV")
 
 # --- Password Protection ---
 password = st.text_input("🔑 Enter Password:", type="password")
@@ -80,12 +109,13 @@ if password == "123123":
 
     df_combined, month_cols = loaded_data
 
-    # --- Sidebar Filter (NOW VISIBLE & FIXED) ---
-    all_outlets = sorted(df_combined['Outlet'].unique().tolist())
-    selected_outlet = st.sidebar.selectbox(
-        "🏬 Select Outlet:",
-        ["All Outlets"] + all_outlets
-    )
+    # --- Sidebar Filters ---
+    with st.sidebar:
+        all_outlets = sorted(df_combined['Outlet'].unique().tolist())
+        selected_outlet = st.selectbox(
+            "🏬 Select Outlet:",
+            ["All Outlets"] + all_outlets
+        )
 
     # --- Search Box ---
     search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
@@ -205,7 +235,8 @@ if password == "123123":
             )
 
     else:
-        st.info("👈 Use the sidebar and search box (multiple barcodes supported)")
+        st.info("👈 Use Filters button to open sidebar")
 
 elif password:
     st.error("❌ Incorrect Password.")
+
