@@ -90,9 +90,11 @@ if password == "123123":
     )
 
     # --- Main Page: Search Box ---
-    search_term = st.text_input("🔍 Search by Item Name or Barcode:").strip()
+    search_input = st.text_input("🔍 Search by Item Name or Barcode (separate multiple with space):").strip()
 
-    if search_term:
+    if search_input:
+        # Split the search input by spaces to handle multiple barcodes/names
+        search_terms = [term.strip() for term in search_input.split() if term.strip()]
         
         # 1. Apply Outlet Filter FIRST
         if selected_outlet != "All Outlets":
@@ -100,116 +102,110 @@ if password == "123123":
         else:
             df_filtered = df_combined.copy()
             
-        # 2. Apply Item Search Filter
+        # 2. Apply Item Search Filter using all search terms
+        # This creates a regex pattern like "term1|term2|term3"
+        search_pattern = "|".join(search_terms)
+        
         filtered_df_item = df_filtered[
-            df_filtered["Items"].astype(str).str.contains(search_term, case=False, na=False)
-            | df_filtered["Item Code"].astype(str).str.contains(search_term, case=False, na=False)
+            df_filtered["Items"].astype(str).str.contains(search_pattern, case=False, na=False)
+            | df_filtered["Item Code"].astype(str).str.contains(search_pattern, case=False, na=False)
         ]
 
         if not filtered_df_item.empty:
-            
-            # --- Handle Multiple Item Matches (for display clarity) ---
-            matching_items = filtered_df_item[['Item Code', 'Items']].drop_duplicates()
-            
-            if len(matching_items) > 1:
-                item_options = matching_items['Items'].tolist()
-                selected_item_name = st.selectbox("Select specific item:", item_options)
+            # Get unique items found from the search
+            unique_items = filtered_df_item['Items'].unique()
+
+            # --- Loop through each unique item found ---
+            for selected_item_name in unique_items:
+                st.divider() # Visual separation between different items
+                
                 final_item_df = filtered_df_item[filtered_df_item['Items'] == selected_item_name]
-            else:
-                final_item_df = filtered_df_item
-                selected_item_name = final_item_df.iloc[0]["Items"]
 
-            st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
-            
-            # --- Aggregate and Melt data for Plotting ---
-            monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
-            
-            monthly_sales_melted = monthly_sales_summary.melt(
-                id_vars="Outlet",
-                value_vars=month_cols,
-                var_name="Month",
-                value_name="Qty Sold"
-            )
-            
-            # Filter out zero sales for better chart visualization
-            monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
-            
-            if not monthly_sales_melted_plot.empty:
+                st.subheader(f"📦 Monthly Sales Breakdown for: **{selected_item_name}**")
                 
-                # --- GRAND TOTAL (Overall) ---
-                grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
-                st.metric(
-                    label=f"🏆 GRAND TOTAL QUANTITY SOLD ({selected_item_name})",
-                    value=f"{grand_total_qty:,.0f} units"
+                # --- Aggregate and Melt data for Plotting ---
+                monthly_sales_summary = final_item_df.groupby(['Outlet'])[month_cols].sum().reset_index()
+                
+                monthly_sales_melted = monthly_sales_summary.melt(
+                    id_vars="Outlet",
+                    value_vars=month_cols,
+                    var_name="Month",
+                    value_name="Qty Sold"
                 )
                 
-                # --- Stacked Horizontal Bar Chart ---
-                st.markdown("### 📊 Outlet Sales Total (Monthly Composition)")
+                # Filter out zero sales for better chart visualization
+                monthly_sales_melted_plot = monthly_sales_melted[monthly_sales_melted["Qty Sold"] > 0]
                 
-                # Filter the master order list to only include months present in the data
-                present_month_order = [m for m in MASTER_MONTH_ORDER if m in monthly_sales_melted_plot['Month'].unique()]
-                
-                fig = px.bar(
-                    monthly_sales_melted_plot,
-                    x="Qty Sold",
-                    y="Outlet",
-                    color="Month", 
-                    orientation="h",
-                    title=f"Total Sales Quantity by Outlet, Segmented by Month",
-                    hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
-                    color_discrete_sequence=px.colors.sequential.Blues_r,
-                    category_orders={"Month": present_month_order} 
-                )
-                
-                fig.update_traces(marker_line_width=1, marker_line_color='black')
-                
-                fig.update_layout(
-                    xaxis_title="Quantity Sold (Stacked by Month)", 
-                    yaxis_title="Outlet",
-                    yaxis={'categoryorder':'total ascending'},
-                    legend_title_text='Month',
-                    # Adjust right margin to make space for the totals label
-                    margin=dict(r=100) 
-                )
-
-                # --- ADDING TOTAL LABELS TO THE CHART ---
-                outlet_totals = monthly_sales_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
-                outlet_totals.columns = ['Outlet', 'Total Sales (Qty)']
-
-                # Add annotations for the total quantity at the end of each bar
-                for _, row in outlet_totals.iterrows():
-                    fig.add_annotation(
-                        x=row['Total Sales (Qty)'],
-                        y=row['Outlet'],
-                        text=f"{row['Total Sales (Qty)']:.0f}",
-                        showarrow=False,
-                        xanchor='left',
-                        xshift=10, # Push label slightly past the end of the bar
-                        font=dict(size=12, color='black', weight='bold')
+                if not monthly_sales_melted_plot.empty:
+                    
+                    # --- GRAND TOTAL (Overall) ---
+                    grand_total_qty = monthly_sales_melted_plot['Qty Sold'].sum()
+                    st.metric(
+                        label=f"🏆 GRAND TOTAL QUANTITY SOLD",
+                        value=f"{grand_total_qty:,.0f} units"
+                    )
+                    
+                    # --- Stacked Horizontal Bar Chart ---
+                    st.markdown(f"### 📊 {selected_item_name}: Outlet Sales Total")
+                    
+                    present_month_order = [m for m in MASTER_MONTH_ORDER if m in monthly_sales_melted_plot['Month'].unique()]
+                    
+                    fig = px.bar(
+                        monthly_sales_melted_plot,
+                        x="Qty Sold",
+                        y="Outlet",
+                        color="Month", 
+                        orientation="h",
+                        title=f"Total Sales Quantity by Outlet: {selected_item_name}",
+                        hover_data={"Qty Sold": True, "Month": True, "Outlet": True},
+                        color_discrete_sequence=px.colors.sequential.Blues_r,
+                        category_orders={"Month": present_month_order} 
+                    )
+                    
+                    fig.update_traces(marker_line_width=1, marker_line_color='black')
+                    fig.update_layout(
+                        xaxis_title="Quantity Sold (Stacked by Month)", 
+                        yaxis_title="Outlet",
+                        yaxis={'categoryorder':'total ascending'},
+                        legend_title_text='Month',
+                        margin=dict(r=100) 
                     )
 
-                st.plotly_chart(fig, use_container_width=True) # Final plot call
-                
-                # --- Total by Outlet Wise (Table) ---
-                st.markdown("### 🏷️ Total Sales Quantity by Outlet")
-                st.dataframe(
-                    outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
-                    use_container_width=True
-                )
-                
-                # --- Detailed Table (Show monthly sales) ---
-                st.markdown("### 📋 Monthly Sales Breakdown")
-                
-                # Prepare a table showing monthly sales
-                display_cols = ['Outlet'] + month_cols
-                st.dataframe(
-                    monthly_sales_summary[display_cols].sort_values("Outlet"),
-                    use_container_width=True
-                )
+                    # --- ADDING TOTAL LABELS TO THE CHART ---
+                    outlet_totals = monthly_sales_melted_plot.groupby('Outlet')['Qty Sold'].sum().reset_index()
+                    outlet_totals.columns = ['Outlet', 'Total Sales (Qty)']
 
-            else:
-                st.warning(f"No sales data found for **{selected_item_name}** in the selected period/outlet(s).")
-                
+                    for _, row in outlet_totals.iterrows():
+                        fig.add_annotation(
+                            x=row['Total Sales (Qty)'],
+                            y=row['Outlet'],
+                            text=f"{row['Total Sales (Qty)']:.0f}",
+                            showarrow=False,
+                            xanchor='left',
+                            xshift=10, 
+                            font=dict(size=12, color='black', weight='bold')
+                        )
+
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{selected_item_name}") 
+                    
+                    # --- Total by Outlet Wise (Table) ---
+                    with st.expander(f"See Data Tables for {selected_item_name}"):
+                        st.markdown("### 🏷️ Total Sales Quantity by Outlet")
+                        st.dataframe(
+                            outlet_totals.sort_values('Total Sales (Qty)', ascending=False),
+                            use_container_width=True
+                        )
+                        
+                        st.markdown("### 📋 Monthly Sales Breakdown")
+                        display_cols = ['Outlet'] + month_cols
+                        st.dataframe(
+                            monthly_sales_summary[display_cols].sort_values("Outlet"),
+                            use_container_width=True
+                        )
+
+                else:
+                    st.warning(f"No sales data found for **{selected_item_name}**.")
+                    
         else:
             st.warning("🔎 No matching items found. Try another search term.")
             
@@ -218,8 +214,8 @@ if password == "123123":
         st.info("🔒 Please enter the password to access the dashboard.")
 
     # --- Info after access, but before search ---
-    elif password == "123123" and not search_term:
-        st.info("👈 Use the sidebar to filter by Outlet and the search box to find an item by Name or Barcode.")
+    elif password == "123123" and not search_input:
+        st.info("👈 Use the sidebar to filter by Outlet and the search box to find an item. You can paste multiple barcodes separated by spaces.")
 
 
 elif password:
