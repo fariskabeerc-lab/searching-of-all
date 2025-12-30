@@ -9,16 +9,22 @@ st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 
 st.title("🏪 Sales QTY Check - JAN to NOV")
 
+st.set_page_config(layout="wide")
+
 st.markdown("""
 <style>
-[data-testid="stToolbarActions"] {
-    display: none;
+/* Force hide Streamlit header toolbar */
+header [data-testid="stToolbarActions"] {
+    visibility: hidden !important;
 }
-[data-testid="stMainMenu"] {
-    display: none;
+
+/* Force hide 3-dot menu */
+header [data-testid="stMainMenu"] {
+    visibility: hidden !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # =========================
