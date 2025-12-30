@@ -9,6 +9,18 @@ st.set_page_config(page_title="Outlet Sales Insights", layout="wide")
 
 st.title("🏪 Sales QTY Check - JAN to NOV")
 
+st.markdown("""
+<style>
+[data-testid="stToolbarActions"] {
+    display: none;
+}
+[data-testid="stMainMenu"] {
+    display: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # =========================
 # --- Password Protection ---
 # =========================
