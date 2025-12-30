@@ -84,7 +84,7 @@ def load_all_data(files_list):
 # =========================
 # --- Main App Logic ---
 # =========================
-if password == "123123":
+if password == "1366":
     st.success("✅ Access Granted")
 
     data_load = load_all_data(DATA_FILES)
